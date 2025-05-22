@@ -1,3 +1,4 @@
+//TEST FOR THE BLACK HOLE IMPLEMENTATION
 #include <esat/window.h>
 #include <esat/draw.h>
 #include <esat/input.h>
