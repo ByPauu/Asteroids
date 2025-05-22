@@ -1,4 +1,4 @@
-#define WIN32
+//#define WIN32
 
 //NORMAL LIBRARIES
 #include <stdio.h>
@@ -118,8 +118,11 @@ enum GameMode{
 
 Strings max_score;
 
+//IMPORTANT userinfo-> is a pointer to the real credentials on (all_player 0/1)->info
+//IMPORTANTSo every time we switch players in reality we switch userinfo-> to (all_player 0 or 1)
 UsuarioInfo* userinfo;
 UsuarioInfo* all_players;
+
 GameState gamestate = GameState::playermenu;
 GameMode gamemode = GameMode::normal;
 
@@ -133,10 +136,8 @@ double bullet_time = 0.0, current_bullet_time = 0.0;
 int kNAsteroids = 50;
 int AstInGame = 0;
 int kNBullets = 5;
-int kNextLive = 10000;
 int kNPlayers = 1;
 int kNHoles = 3;
-int kNMallocs = 0;
 float kGravity = 6;
 
 int gamecounter = 0;
@@ -167,6 +168,7 @@ void CheckPointer(void* punterito);
 void FreePointer(void* punterito);
 void* OpenPointer(int howmuch);
 void* OpenString(int howmuch);
+
 //PLAYER
 void InputPlayer(Player* player);
 void PlayerShoot(Player* player);
@@ -565,7 +567,6 @@ void InitPlayers(Player** player){
       (((*player) + i)->bullet + e)->counter = 0;
     }
   }
-
   
   printf("\nPLAYER ALLOCADO\n");
 
@@ -1790,9 +1791,9 @@ void FreeMemory(Player* player, Asteroid* asteroid, Faketeroid* faketeroid, Fake
       // BULLET
       if((player + i)->bullet != NULL){ FreePointer((player + i)->bullet); } 
     }
-    if(bullet_points != NULL){ FreePointer(bullet_points); }
     FreePointer(player);
   }
+  if(bullet_points != NULL){ FreePointer(bullet_points); }
   // FAKEPLAYER
   if(fakeplayer != NULL){
     for(int i = 0; i < 6; i++) {
@@ -1847,7 +1848,6 @@ void FreeMemory(Player* player, Asteroid* asteroid, Faketeroid* faketeroid, Fake
       if((all_players + i)->plscore.string != NULL){ FreePointer((all_players + i)->plscore.string); }
       if((all_players + i)->plactualround.string != NULL){ FreePointer((all_players + i)->plactualround.string); }
       if((all_players + i)->plcredits.string != NULL){ FreePointer((all_players + i)->plcredits.string); }
-
     }
     FreePointer(all_players);
   } 
@@ -1855,8 +1855,8 @@ void FreeMemory(Player* player, Asteroid* asteroid, Faketeroid* faketeroid, Fake
   if(auxstring != NULL){ FreePointer(auxstring); }
   if(auxstring2 != NULL){ FreePointer(auxstring2); }
   if(auxstring3 != NULL){ FreePointer(auxstring3); }
+  if(max_score.string != NULL){ FreePointer(max_score.string); }
   if(sql != NULL){ FreePointer(sql); }
-  printf("HAN QUEDADO %d PUNTEROS POR LIBERAR",kNMallocs);
 }
 
 //Function that checks every pointed when it is created to shut down program bc it hasnt been allocated
@@ -1878,23 +1878,21 @@ void FreePointer(void* punterito){
   if(punterito != NULL) {
     free(punterito);
     punterito = NULL;
-    kNMallocs--;
   }
 }
+//Function to open pointers
 void* OpenPointer(int howmuch){
   void* punterito = malloc(howmuch);
   CheckPointer(punterito);
-  kNMallocs++;
 
   return punterito;
 }
+//Function to open strings pointers and set them '\0'
 void* OpenString(int howmuch){
   void* punterito = malloc(howmuch);
   CheckPointer(punterito);
 
   ResetString((char*) punterito, howmuch / sizeof(char));
-  
-  kNMallocs++;
 
   return punterito;
 }
@@ -1996,7 +1994,18 @@ void DrawCalcMenu(Asteroid* asteroid, Faketeroid* faketeroid){
   /*Here there is a transcription to make shure player has enough credits to play the game
   if he doesnt have it will show: You have no credits left*/
   (all_players + 0)->plcredits.number = atoi((all_players + 0)->user_credits);
-  if((all_players + 0)->plcredits.number > 0){
+  (all_players + 1)->plcredits.number = atoi((all_players + 1)->user_credits);
+  bool play = false;
+  if(kNPlayers == 2){
+    if((all_players + 0)->plcredits.number > 0 && (all_players + 1)->plcredits.number > 0){
+      play = 1;
+    }
+  }else{
+    if((all_players + 0)->plcredits.number > 0){
+      play = 1;
+    }
+  }
+  if(play == 1){
     esat::DrawText(290, 750, "1 COIN 1     1");
     //This part checks a hover over the text so if you put your mouse over it it grows, if you click enters a menu
     if((esat::MousePositionX() > 545 && esat::MousePositionX() < 660 && esat::MousePositionY() > 705 && esat::MousePositionY() < 758) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
@@ -2006,10 +2015,12 @@ void DrawCalcMenu(Asteroid* asteroid, Faketeroid* faketeroid){
         //StartGame(player);
       }
     }else{
+      //Here the hover is removed if mouse isn't in place
       esat::DrawSetTextSize(50);
     }
     esat::DrawText(550, 750, "PLAY");
   }else{
+    //Here is said this if player has no credits
     esat::DrawText(180, 750, "You Have No Credits Left");
   }
   //SCOREBOARD BUTTON
@@ -2065,6 +2076,7 @@ void DrawCalcPlayerMenu(Player** player, Asteroid* asteroid, Faketeroid* faketer
       if(( esat::MousePositionX() > 370 && esat::MousePositionX() < 700 
         && esat::MousePositionY() > 350 && esat::MousePositionY() < 400) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
         if(esat::MouseButtonDown(0) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
+          //This hover selects number of players, so kNplayers will flow depending on the 'button' pressed
           infocounter++;
           kNPlayers = 1;
           InitPlayers(player);
@@ -2078,7 +2090,7 @@ void DrawCalcPlayerMenu(Player** player, Asteroid* asteroid, Faketeroid* faketer
       //Hover to 2 players
       if(( esat::MousePositionX() > 370 && esat::MousePositionX() < 700 
         && esat::MousePositionY() > 450 && esat::MousePositionY() < 500)){
-
+        //Here's the button for 2 players
         if(esat::MouseButtonDown(0)){
           infocounter++;
           kNPlayers = 2;
@@ -2099,9 +2111,11 @@ void DrawCalcPlayerMenu(Player** player, Asteroid* asteroid, Faketeroid* faketer
       if(( esat::MousePositionX() > 370 && esat::MousePositionX() < 700 
         && esat::MousePositionY() > 350 && esat::MousePositionY() < 400) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
         if(esat::MouseButtonDown(0) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
+          //Here is selected normal gamemode this leads to unlogged screen
           gamemode = GameMode::normal;
           gamestate = GameState::unlogged;
         }
+        //Hover for normal gamemode
         esat::DrawSetTextSize(55);
         esat::DrawText(400, 400, "Normal");
       }else{
@@ -2111,7 +2125,7 @@ void DrawCalcPlayerMenu(Player** player, Asteroid* asteroid, Faketeroid* faketer
   
       if(( esat::MousePositionX() > 370 && esat::MousePositionX() < 700 
         && esat::MousePositionY() > 450 && esat::MousePositionY() < 500)){
-  
+        //Hover to blackhole gamemode, this leads to unlogged screen
         if(esat::MouseButtonDown(0)){
           gamemode = GameMode::black_hole;
           gamestate = GameState::unlogged;
@@ -2126,28 +2140,35 @@ void DrawCalcPlayerMenu(Player** player, Asteroid* asteroid, Faketeroid* faketer
   }
   esat::DrawEnd();
 }
-//This parts shows when you die
+//This parts shows when you die your score and your friends one, 
+//if you or your friends are top 10 it will show
 void ScoreBoard(Asteroid* asteroid, Faketeroid* faketeroid){
+  //This checks if game has already been saved
   if(gamesaved == false){
     SaveScore();
     gamesaved = true;
   }
+  //This screen has asteroids on background so we have to update and draw them
   UpdateAsteroid(asteroid, faketeroid);
 
   esat::DrawBegin();
   esat::DrawClear(0,0,0);
   esat::DrawSetFillColor(255,255,255,0);
+  //Here is the asteroids draw
   DrawAsteroid(asteroid);
-  
   esat::DrawSetStrokeColor(255,255,255);
   esat::DrawSetFillColor(255,255,255,255);
   esat::DrawSetTextSize(90);
-  esat::DrawText(270, 120, "ASTEROIDS"); 
+  esat::DrawText(270, 120, "ASTEROIDS");  //Asteroids title
+  //This screen will repeat 2 times if theres 2 players
   for(int i = 0; i < kNPlayers; i++){
     esat::DrawSetTextSize(50);
+    //This shows you user and score
     esat::DrawText(450, 430 + i * 200, userinfo->username);
     esat::DrawText(240, 500 + i * 200, "Your Score Is: ");
     esat::DrawText(680, 500 + i * 200,userinfo->plscore.string);
+    //If you are top 10 it will show, 
+    //Topplayer settings-> |  -> No top | 1 -> Player 1 top | 2 -> Player 2 top | 3 -> Both Player top
     switch(topplayer){
       case 1:{
         esat::DrawText(700, 430, "TOP 10");
@@ -2160,6 +2181,7 @@ void ScoreBoard(Asteroid* asteroid, Faketeroid* faketeroid){
         esat::DrawText(700, 430 + i * 200, "TOP 10");
       }
     }
+    //this part switches players so we can se both of them stats
     if(kNPlayers == 2){
       SwitchPlayers();
     }
@@ -2168,7 +2190,7 @@ void ScoreBoard(Asteroid* asteroid, Faketeroid* faketeroid){
   esat::DrawText(385, 870, "ASTEROIDS BY PAUU");
   esat::DrawEnd();
 }
-
+//This function draws all of the unlogged menu, where player has to login or register
 void UnLoggedMenu(){
   esat::DrawBegin();
   esat::DrawClear(0,0,0);
@@ -2179,10 +2201,11 @@ void UnLoggedMenu(){
   esat::DrawSetFillColor(255,255,255,255);
   esat::DrawSetTextSize(90);
   esat::DrawText(270, 120, "ASTEROIDS");  
-  //LOGIN BUTTON
+  //LOGIN HERE IS THE HOVER OVER LOGIN BUTTON
   if(( esat::MousePositionX() > 400 && esat::MousePositionX() < 550 
     && esat::MousePositionY() > 350 && esat::MousePositionY() < 400) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
     if(esat::MouseButtonDown(0) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
+      //If you click or intro you will go to login
       gamestate = GameState::login;
     }
     esat::DrawSetTextSize(55);
@@ -2196,6 +2219,7 @@ void UnLoggedMenu(){
     && esat::MousePositionY() > 450 && esat::MousePositionY() < 500)){
 
     if(esat::MouseButtonDown(0)){
+      //If you click on register you will go to register
       gamestate = GameState::registr;
     }
     esat::DrawSetTextSize(55);
@@ -2209,10 +2233,14 @@ void UnLoggedMenu(){
   esat::DrawSetTextSize(50);
   esat::DrawEnd();
 }
+//This is register menu, where player will create his credentials
+//Also function will introduce them into database
+//IMPORTANT userinfo-> is a pointer to the real credentials on (all_player 0/1)->info
+//IMPORTANTSo every time we switch players in reality we switch userinfo-> to (all_player 0 or 1)
 void RegistrterMenu(){
-  static int charcounter = 0;
-  static int infocounter = 0;
-  static int correct = 0;
+  static int charcounter = 0; //This is a counter to help graphic text
+  static int infocounter = 0; //This is a counter to move trough screens
+  static int correct = 0;     //This is the helper if the user is repeated
   esat::DrawBegin();
   esat::DrawClear(0,0,0);
   esat::DrawSetStrokeColor(255,255,255);
@@ -2223,6 +2251,9 @@ void RegistrterMenu(){
   esat::DrawText(270, 120, "ASTEROIDS");  
   //LOGIN BUTTON
   esat::DrawSetTextSize(50);
+  //Infocounter 0 will be to introduce you user
+  //If correct is 1 you won't go to passw and have to introduce other user
+  //When you press enter function InsertVNN will give you back correct to check if user is wrong
   switch(infocounter){
     case 0:{
       esat::DrawText(220, 400, "Enter Your Username");
@@ -2231,13 +2262,16 @@ void RegistrterMenu(){
       if(correct == 1){
         esat::DrawText(220, 340, "Unvalid Username");
       }
-
+      //This is the helper to introduce your credentials
+      /*Auxkey is the key you introduce every time, and charcounter the key on the string 
+      that you are right now program filters spaces and that string is less that 12 character*/
       char auxkey = esat::GetNextPressedKey();
       if(auxkey != '\0' && charcounter < 12 && auxkey != ' '){
         *(userinfo->username + charcounter) = auxkey;
         charcounter++; 
       }
       if(esat::IsSpecialKeyDown(esat::kSpecialKey_Backspace) && charcounter > 0){
+        //If user pressed backspaces that key will be deleted and you'll go back on the string
         charcounter--;
         *(userinfo->username + charcounter) = '\0';
       }
@@ -2245,12 +2279,16 @@ void RegistrterMenu(){
       break;
     }
     case 1:{
+      //This is the same but with passw, here auxstring is replaces with * as many char you have
+      //It will show as many * as char you have on you pass
+      //The real pass is stored in userinfo->userpasww
       for(int i = 0; i < charcounter; i++){
         *(auxstring3 + i) = '*';
       }
       esat::DrawText(220, 400, "Enter Your Password");
       esat::DrawText(300, 470, auxstring3);
-      
+      //Here is reseted auxstring 3 to then regrite it if is has been deleted it
+      //This is the same for every part that has text (Read first part line 2260 aprox)
       ResetString(auxstring3,20);
       char auxkey = esat::GetNextPressedKey();
       if(auxkey != '\0' && charcounter < 12 && auxkey != ' '){
@@ -2263,6 +2301,7 @@ void RegistrterMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //This is the same for every part that has text (Read first part line 2260 aprox)
     case 2:{
       esat::DrawText(220, 400, "Enter Your Name");
       esat::DrawText(300, 470, auxstring);
@@ -2278,6 +2317,7 @@ void RegistrterMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //This is the same for every part that has text (Read first part line 2260 aprox)
     case 3:{
       esat::DrawText(220, 400, "Enter Both Lastnames");
       esat::DrawText(300, 470, auxstring);
@@ -2297,6 +2337,8 @@ void RegistrterMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //This is the same for every part that has text (Read first part line 2260 aprox)
+    //In this one if is pressed alt you can write @ nc normaly fucntion getpressedkey won't capture @
     case 4:{
       esat::DrawText(220, 400, "Enter Your Email");
       esat::DrawText(200, 470, auxstring);
@@ -2317,6 +2359,7 @@ void RegistrterMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //This is the same for every part that has text (Read first part line 2260 aprox)
     case 5:{
       esat::DrawText(220, 400, "Enter your city");
       esat::DrawSetTextSize(30);
@@ -2335,6 +2378,7 @@ void RegistrterMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //This is the same for every part that has text (Read first part line 2260 aprox)
     case 6:{
       esat::DrawText(220, 400, "Enter your country");
       esat::DrawSetTextSize(30);
@@ -2353,6 +2397,7 @@ void RegistrterMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //This is the same for every part that has text (Read first part line 2260 aprox)
     case 7:{
       esat::DrawText(220, 400, "Enter your birthdate");
       esat::DrawSetTextSize(30);
@@ -2381,11 +2426,12 @@ void RegistrterMenu(){
   esat::DrawText(385, 870, "ASTEROIDS BY PAUU");
   esat::DrawSetTextSize(50);
   esat::DrawEnd();
-
+  //Here starts the info input
   if(esat::IsSpecialKeyDown(esat::kSpecialKey_Enter) && charcounter > 0){
     switch (infocounter){
       //USERNAME AND PASSWORD
       case 0:{
+        //In the first case we will know if username is duplicated,
         bool duplicado = false;
         InsertVNN(&duplicado);
         if(duplicado == false){
@@ -2396,6 +2442,7 @@ void RegistrterMenu(){
         }
         break;
       }
+      //In the other cases we will introduce data as usually
       case 1: //PASSWORD
       case 2: //FIRST NAME
       case 3: //BOTH LASTNAMES
@@ -2412,7 +2459,9 @@ void RegistrterMenu(){
         InsertData(auxstring, infocounter);
         infocounter++;
         charcounter = 0;
-
+        //Here, if there is 2 players we will go back to unlogged bc to log other player
+        //If not we will simply go to mainmeny to play
+        //Also this function swiched players to switch pointer userinfo
         if(kNPlayers == 2){
           if(user_index == 0){
             gamestate = GameState::unlogged;
@@ -2432,7 +2481,13 @@ void RegistrterMenu(){
     ResetString(auxstring,30);
   }
 }
+//IMPORTANT userinfo-> is a pointer to the real credentials on (all_player 0/1)->info
+//IMPORTANTSo every time we switch players in reality we switch userinfo-> to (all_player 0 or 1)
+//Infocounter 0 will be to introduce you user
+//If correct is 1 you won't go to passw and have to introduce other user
+//When you press enter function InsertVNN will give you back correct to check if user is wrong
 void LoginMenu(){
+  //Charcounter represents the key you are in the string
   static int charcounter = 0;
   static int infocounter = 0;
   static int correct = 0;
@@ -2448,7 +2503,7 @@ void LoginMenu(){
   esat::DrawText(385, 870, "ASTEROIDS BY PAUU");  
   esat::DrawSetTextSize(50);
   esat::DrawEnd(); 
-  //LOGIN BUTTON
+  //LOGIN BUTTON HOVER
   esat::DrawSetTextSize(50);
   switch(infocounter){
     case 0:{
@@ -2457,6 +2512,10 @@ void LoginMenu(){
       if(correct == 1){
         esat::DrawText(220, 340, "Unvalid Username");
       }
+      //This is the helper to introduce your credentials
+      /*Auxkey is the key you introduce every time, and charcounter the key on the string 
+      that you are right now, program filters spaces and that string is less that 12 character*/
+      //If user is invalid game will show text to Invalid user
       char auxkey = esat::GetNextPressedKey();
       if(auxkey != '\0' && charcounter < 12 && auxkey != ' '){
         *(auxstring + charcounter) = auxkey;
@@ -2472,6 +2531,7 @@ void LoginMenu(){
       esat::ResetBufferdKeyInput();
       break;
     }
+    //SAME BUT FOR PASSWORD
     case 1:{
       for(int i = 0; i < charcounter; i++){
         *(auxstring3 + i) = '*';
@@ -2493,6 +2553,8 @@ void LoginMenu(){
       ResetString(auxstring3, 20);
       break;
     }
+    //This part takes you to unlogged if there is another user unlogged or to mainmanu
+    //This part also switch userinfo-> to (all_users 1 or 0)->
     case 2:{
       if(kNPlayers == 2){
         if(*((all_players + 1)->username + 0) == '\0'){
@@ -2512,7 +2574,9 @@ void LoginMenu(){
       break;
     }
   }
-  
+  //This is the input part
+  //When you introduce you user, function GetUser first returns if thats a valid user and then returns
+  //The passw on userinfo->password so we can use that later
   if(esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
     switch(infocounter){
       case 0: {
@@ -2527,6 +2591,7 @@ void LoginMenu(){
         }
         break;
       }
+      //Here if the passw introduced by user is the same a userpasww tgen program goes to mainmenu screen to continue
       case 1: {
           if(strcmp(auxstring2, userinfo->user_password) == 0){
             infocounter++;
@@ -2541,7 +2606,7 @@ void LoginMenu(){
   }
 }
 
-
+//Calback to return some user info
 static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
   int i;
   for(i = 0; i<argc; i++) {
@@ -2551,53 +2616,11 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
   return 0;
 }
 
-void CreateTable(){
-  sqlite3 *db;
-  char *zErrMsg = 0;
-  int rc;
-  ResetString(sql, 200);
-
-  /* Open database */
-  rc = sqlite3_open("assets/usuarios.db", &db);
-   
-  if( rc ) {
-    fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-  } else {
-    fprintf(stdout, "Opened database successfully\n");
-
-        /* Create SQL statement */
-    snprintf(sql, sizeof(char) * 200,
-    "CREATE TABLE USUARIOS("  \
-    "USERNAME        CHAR(12) PRIMARY KEY    NOT NULL," \
-    "PASSWORD        CHAR(12)," \
-    "NAME            CHAR(12)," \
-    "LASTNAME        CHAR(20)," \
-    "EMAIL           CHAR(20)," \
-    "CITY            CHAR(20)," \
-    "COUNTRY         CHAR(20)," \
-    "BIRTHDATE       CHAR(20)," \
-    "CREDITS         INT," \
-    "SCORE           INT);");
-
-    /* Execute SQL statement */
-    rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
-
-    if( rc != SQLITE_OK ){
-      fprintf(stderr, "SQL error: %s\n", zErrMsg);
-      sqlite3_free(zErrMsg);
-      //sqlite3_close(db);
-    } else {
-      fprintf(stdout, "Table created successfully\n");
-    }
-  }
-  sqlite3_close(db);
-}
-
+//This function inserts username passw credits and score of the player when player just have registered
 void InsertVNN(bool* duplicado){
   sqlite3 *db;
   char *zErrMsg = 0;
   int rc;
-
    /* Open database */
    rc = sqlite3_open("assets/usuarios.db", &db);
    
@@ -2608,6 +2631,7 @@ void InsertVNN(bool* duplicado){
    }
 
    /* Create SQL statement */
+   //Simply just inserts data on the table
    snprintf(sql, sizeof(char) * 100, "INSERT INTO USUARIOS (USERNAME,PASSWORD,CREDITS,SCORE) " \
                                       "VALUES ('%s','0',10,0);",userinfo->username);
    /* Execute SQL statement */
@@ -2624,7 +2648,8 @@ void InsertVNN(bool* duplicado){
    }
    sqlite3_close(db);
 }
-
+//This function gets the infocounter to introduce the data every time,
+//Including password, name, lastname, email, country, city and birthdate
 void InsertData(bool duplicado, int infocounter){
   sqlite3 *db;
   char *zErrMsg = 0;
@@ -2687,7 +2712,7 @@ void InsertData(bool duplicado, int infocounter){
   }
   sqlite3_close(db);
 }
-
+//This function uses custom callback to get every info of the user (See declaration of callbackuser)
 void GetUser(bool* duplicado){
   sqlite3 *db;
   char *zErrMsg = 0;
@@ -2698,7 +2723,10 @@ void GetUser(bool* duplicado){
     fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
   }else{
     snprintf(sql, 200, "SELECT USERNAME, PASSWORD ,MAXSCORE, CREDITS, SCORE, ROUND FROM USUARIOS WHERE USERNAME = '%s';", userinfo->username);
-
+    //You simply have to introduce a struct with the number of args you want with strings
+    //You want 5 args -> struct with 5 strings consecutives
+    //That struct if userinfo
+    //This function also returns when a username isn't valid
     rc = sqlite3_exec(db, sql, callbackuser, &userinfo, &zErrMsg);
 
     if (rc != SQLITE_OK) {
@@ -2716,6 +2744,9 @@ void GetUser(bool* duplicado){
     *(userinfo->username + 0) = '\0';
   }
 }
+//This is s a custom callback to return 5 strings on userinfo->
+//Bc userinfo has his 5 args strings if we introduce it this callback
+//will write every string with the info of the user introduced
 static int callbackuser(void *data, int argc, char **argv, char **azColName){
   for(int i = 0; i < argc; i++){
     if (strcmp(azColName[i], "USERNAME") == 0 && *(argv + 0)){
@@ -2745,6 +2776,8 @@ static int callbackuser(void *data, int argc, char **argv, char **azColName){
   }
   return 0;
 }
+//This function inserts score in database every time players pass a round, so if program closes, player
+//Can still continue when he started round
 void InsertScore(){
   sqlite3 *db;
   char *zErrMsg = 0;
@@ -2759,6 +2792,7 @@ void InsertScore(){
       fprintf(stderr, "Opened database successfully\n");
   }
   /* Create SQL statement */
+  //Here we insert score and round on that username
   snprintf(sql, sizeof(char) * 200, "UPDATE USUARIOS set SCORE = %d, ROUND = %d where USERNAME = '%s'; " \
       "SELECT * from USUARIOS", userinfo->plscore.number,userinfo->plactualround.number, userinfo->username);
   /* Execute SQL statement */
@@ -2772,52 +2806,63 @@ void InsertScore(){
   }
   sqlite3_close(db);
 }
-void SaveScore() {
-  if (userinfo != NULL) {
+
+//This function saves the player's final score and updates database if player ranks top 10
+void SaveScore(){
+  if(userinfo != NULL){
     sqlite3 *db;
     char *zErrMsg = 0;
     int rc;
 
-    // Abrir la base de datos una sola vez
+    //Open database 
     rc = sqlite3_open("assets/usuarios.db", &db);
-    if (rc) {
+    if(rc){
       fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
       return;
     }
 
     fprintf(stdout, "Opened database successfully\n");
+
+    //Open a pointer to store top 10 scores
     int* topScores = (int*) malloc(sizeof(int) * 10);
     CheckPointer(topScores);
-    for (int i = 0; i < kNPlayers; i++) {
+
+    //This for is to check both player's score
+    for(int i = 0; i < kNPlayers; i++){
       ResetString(sql, 200);
 
       int playerScore = userinfo->plscore.number;
       int currentCredits = atoi(userinfo->user_credits);
 
-      // Obtener top 10
+      //Get top 10 scores from database
       int count = 0;
       snprintf(sql,sizeof(char) * 100,"SELECT MAXSCORE FROM USUARIOS ORDER BY MAXSCORE DESC LIMIT 10;");
       sqlite3_stmt *stmt;
       rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-      if (rc == SQLITE_OK) {
-        while (sqlite3_step(stmt) == SQLITE_ROW && count < 10) {
+
+      if(rc == SQLITE_OK){
+        while(sqlite3_step(stmt) == SQLITE_ROW && count < 10){
           *(topScores + count++) = sqlite3_column_int(stmt, 0);
+          //This part saves in pointer every score on order
         }
       }
-      sqlite3_finalize(stmt);
+      sqlite3_finalize(stmt); //Free statement resources
 
-      // Verificar si entra en el top 10
-      bool isTop10 = false;
-      if (count < 10) {
-        isTop10 = true;
-      } else {
-        int* menorTop = (topScores + count - 1) ;
-        if (playerScore > *menorTop) {
-          isTop10 = true;
+      //Check if player's score enters in top 10
+      bool playerTop = false;
+      if(count < 10){
+        playerTop = true; //If there are less than 10 scores, it enters on top
+      }else{
+        int* lowestTop = (topScores + count - 1); //Check the lowest top 10 score
+        if(playerScore > *lowestTop){
+          playerTop = true; //Player enters top 10 if his score is higher than the lowest
         }
       }
 
-      if (isTop10) {
+      //If player qualifies for top 10, function gives him 5 credits,
+      //This part checks if player 1 is in, player 2 or both of them are in
+      //If player 1 -> topplayer = 1 | if player 2 -> topplayer = 2 | if both player -> topplayer = 3
+      if(playerTop){
         currentCredits += 5;
         if(user_index == 0){
           if(topplayer == 2){
@@ -2832,27 +2877,27 @@ void SaveScore() {
             topplayer = 2;
           }
         }
-        
       }
 
-      // Actualizar la base de datos
-      if(atoi(userinfo->maxscore) == userinfo->plscore.number){
-        char* datetoday = (char*) calloc(9,sizeof(char));
+      //If current score is higher that maxscore we update it and the date too
+      if(userinfo->plscore.number > atoi(userinfo->maxscore)){
+        char* datetoday = (char*) calloc(9,sizeof(char)); //Format: MM/DD/YY
         CheckPointer(datetoday);
         #ifdef WIN32
-        _strdate_s(datetoday,9);
+        _strdate_s(datetoday,9); //Get today's date
         #endif
         snprintf(sql, sizeof(char) * 200,
               "UPDATE USUARIOS SET MAXSCORE = %s, CREDITS = %d, DATE = '%s' WHERE USERNAME = '%s';",
               userinfo->maxscore, currentCredits - 1, datetoday, userinfo->username);
         FreePointer(datetoday);
       }else{
+        //Otherwise, just update score and credits
         snprintf(sql, sizeof(char) * 200,
               "UPDATE USUARIOS SET MAXSCORE = %s, CREDITS = %d WHERE USERNAME = '%s';",
               userinfo->maxscore, currentCredits - 1, userinfo->username);
       }
-      
-      
+
+      //Execute the update statement
       rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
       if (rc != SQLITE_OK) {
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
@@ -2861,20 +2906,24 @@ void SaveScore() {
         fprintf(stdout, "Record updated successfully for player %d\n", i);
       }
 
-      SwitchPlayers();  // cambiar al siguiente jugador
+      //Switch to next player
+      SwitchPlayers();  
     }
-
+    //Close database and free memory used for top 10 array
     sqlite3_close(db);
     FreePointer(topScores);
   }
 }
 
+//Function that switches players by changing user index from 0 to 1 everytime
 void SwitchPlayers(){
   user_index = (user_index + 1) % 2;
   userinfo = all_players + user_index;
 }
 
-
+//This function swaps player screens by saving in to .dats every asteroid info
+//Function first saves how many asteroids we have and then reads how many has the other player to spawn them
+//This function is activated when player dies
 void SwitchPlayerstats(Asteroid* asteroid, UFO* ufo){
   ufo->stage = 0;
   switch(user_index){
@@ -2969,11 +3018,15 @@ void SwitchPlayerstats(Asteroid* asteroid, UFO* ufo){
       break;
     }
   }
-  
 }
+//This function displays the scoreboard sorted by highest score (MAXSCORE).
+//It queries the top 10 users per page and allows paging through results.
+//Pressing up/down arrow keys moves pages, and clicking back button or pressing enter returns to the main menu.
 void ShowScoreBoard(){
   static int offset = 0;
   static int page = 0;
+
+  //Change page using up/down keys
   if(esat::IsSpecialKeyDown(esat::kSpecialKey_Up)){
     page++;
   }
@@ -2982,32 +3035,43 @@ void ShowScoreBoard(){
       page--;
     }
   }
+
   offset = page * 10;
+
   sqlite3 *db;
   sqlite3_stmt *stmt;
+
+  //Open database and prepare SQL query for top 10 scores with offset
   if (sqlite3_open("assets/usuarios.db", &db) != SQLITE_OK) {
     fprintf(stderr, "No se pudo abrir la base de datos: %s\n", sqlite3_errmsg(db));
     return;
   }else{
-    snprintf(sql, sizeof(char) * 200,"SELECT USERNAME, MAXSCORE FROM USUARIOS ORDER BY MAXSCORE DESC LIMIT 10 OFFSET %d;",offset);
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-        int i = 0;
-        esat::DrawBegin();
-        esat::DrawClear(0,0,0);
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const unsigned char *username = sqlite3_column_text(stmt, 0);
-            int score = sqlite3_column_int(stmt, 1);
-            esat::DrawSetTextSize(40);
-            snprintf(sql, sizeof(char) * 200,"%d. Usuario: %s",i + 1, username);
-            esat::DrawText(200,100 + i * 80, sql);
-            snprintf(sql, sizeof(char) * 200,"   Puntuacion: %d",score);
-            esat::DrawText(200,145 + i * 80, sql);
+    snprintf(sql, sizeof(char) * 200,
+      "SELECT USERNAME, MAXSCORE FROM USUARIOS ORDER BY MAXSCORE DESC LIMIT 10 OFFSET %d;", offset);
 
-            i++;
-        }
-        sqlite3_finalize(stmt);
-        if(( esat::MousePositionX() > 50 && esat::MousePositionX() < 200 
-        && esat::MousePositionY() > 20 && esat::MousePositionY() < 80) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
+    if(sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK){
+      int i = 0;
+      esat::DrawBegin();
+      esat::DrawClear(0,0,0);
+
+      //Loop through the results and display username + score
+      while(sqlite3_step(stmt) == SQLITE_ROW){
+          const unsigned char *username = sqlite3_column_text(stmt, 0);
+          int score = sqlite3_column_int(stmt, 1);
+
+          esat::DrawSetTextSize(40);
+          snprintf(sql, sizeof(char) * 200,"%d. Usuario: %s", i + 1, username);
+          esat::DrawText(200,100 + i * 80, sql);
+          snprintf(sql, sizeof(char) * 200,"   Puntuacion: %d", score);
+          esat::DrawText(200,145 + i * 80, sql);
+          i++;
+      }
+
+      sqlite3_finalize(stmt);
+
+      //Back to menu button (mouse or enter)
+      if((esat::MousePositionX() > 50 && esat::MousePositionX() < 200 
+      && esat::MousePositionY() > 20 && esat::MousePositionY() < 80) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
         if(esat::MouseButtonDown(0) || esat::IsSpecialKeyDown(esat::kSpecialKey_Enter)){
           gamestate = GameState::mainmenu;
         }
@@ -3017,31 +3081,42 @@ void ShowScoreBoard(){
         esat::DrawSetTextSize(50);
         esat::DrawText(50, 50, "BACK TO PLAY");
       }
+
+      //Draw page number
       esat::DrawText(820, 850, "PAGE");
-      snprintf(auxstring3,sizeof(char) * 5,"%d",page + 1);
+      snprintf(auxstring3, sizeof(char) * 5, "%d", page + 1);
       esat::DrawText(950, 850, auxstring3);
+
       esat::DrawEnd();
-    } else {
-        fprintf(stderr, "Error en la consulta SQL: %s\n", sqlite3_errmsg(db));
+    }else{
+      fprintf(stderr, "Error en la consulta SQL: %s\n", sqlite3_errmsg(db));
     }
+
     sqlite3_close(db);
   }
 }
 
+//Function that updates blackhole
 void BlackHoleUpdate(BlackHole* blackhole,Player* player, Asteroid* asteroid){
-  if((rand() % 1800 == 0 && gamemode == GameMode::black_hole) || esat::IsKeyDown('B')){
+  //First we have the generation part, where if gamemode is blackhole and a rand of 1800 is 0 a hole generates
+  if((rand() % 1800 == 0 && gamemode == GameMode::black_hole)){
+    //It searches for the first hole dead to generate in it
     int counter = 0;
     while((blackhole + counter)->stage != 0 && counter < kNHoles - 1){
       counter++;
     }
+    //Here it gives him is stats to where to spawn
     if((blackhole + counter)->stage == 0){
       (blackhole + counter)->stage = 1;
       (blackhole + counter)->center.x = rand() % (kWindowWidth - 400) + 200;
       (blackhole + counter)->center.y = rand() % (kWindowWidth - 400) + 200;
     }
   }
+  //Here is calculated every pull from holes
   for(int j = 0; j < kNHoles;j++){
     if((blackhole + j)->stage >= 1){
+      //First we get the gravity of the player and if its less than 1 he dies
+      //If not we add gravity to his speed to make im go to blackhole
       esat::Vec3 gravity = GetGravity(player->center, (blackhole + j)->center);
       printf("\n%03f",gravity.z);
       if(gravity.z < 1){
@@ -3052,7 +3127,7 @@ void BlackHoleUpdate(BlackHole* blackhole,Player* player, Asteroid* asteroid){
       float actualGravity = kGravity * (blackhole + j)->mass;
       player->speed.x += gravity.x * actualGravity;
       player->speed.y += gravity.y * actualGravity;
-
+      //We make this also for every bullet, get gravity and add it to speed
       for(int i = 0; i < kNBullets; i++){
         if((player->bullet + i)->active == 1){
 
@@ -3061,7 +3136,7 @@ void BlackHoleUpdate(BlackHole* blackhole,Player* player, Asteroid* asteroid){
           (player->bullet + i)->speed.y += gravity.y * actualGravity * 8;
         }
       }
-
+      //Here also for asteroids, get gravity and add it to speed
       for(int i = 0; i < kNAsteroids; i++){
         if((asteroid + i)->stage > 0 && (asteroid + i)->stage <= 4){
           esat::Vec3 gravity = GetGravity((asteroid + i)->center, (blackhole + j)->center);
@@ -3070,15 +3145,17 @@ void BlackHoleUpdate(BlackHole* blackhole,Player* player, Asteroid* asteroid){
           (asteroid + i)->speed.y += gravity.y * actualGravity;
         }
       }
-
+      //here is the timer of the hole
       (blackhole + j)->counter++;
+      //If timer gets to 400 mass starts growing
       if((blackhole + j)->counter < 400){
         (blackhole + j)->mass += 0.01 / 4;
       }
-
+      //If mass gets to 2000 it stops growing and starts getting small
       if((blackhole + j)->counter > 2000){
         (blackhole + j)->mass -= 0.01 / 5;
       }
+      //If timer gets to 2500 it dies
       if((blackhole + j)->counter > 2500){
         (blackhole + j)->stage = 0;
         (blackhole + j)->counter = 0;
@@ -3087,7 +3164,10 @@ void BlackHoleUpdate(BlackHole* blackhole,Player* player, Asteroid* asteroid){
     }
   }
 }
-
+//This function updates every point of the hole and draws it on screen
+//Hole really is just a pentagon
+//This part draws 5 pentagons from biggest to smallest with diffrent iluminations
+//To make it shinier and a better animation
 void DrawBlackHole(BlackHole* blackhole){
   for(int j = 0; j < kNHoles; j++){
     if((blackhole + j)->stage > 0){
@@ -3110,7 +3190,8 @@ void DrawBlackHole(BlackHole* blackhole){
     }
   }
 }
-
+//This function returns gravity by inserting pos of object and the hole you are using
+//Then calcs the gravity that is going to have and returns that vector
 esat::Vec3 GetGravity(esat::Vec2 center, esat::Vec2 hole){
   esat::Vec3 gravity = {hole.x - center.x, hole.y - center.y};
   float norm = sqrtf(gravity.x * gravity.x + gravity.y * gravity.y);
